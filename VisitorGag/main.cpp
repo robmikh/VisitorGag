@@ -70,6 +70,13 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
                 co_await player.LoadGifAsync(stream);
                 player.Play();
                 windowRef.Resize(player.Size());
+
+                // TODO: Generate random window position
+                // TODO: Capture screen with DDA
+                // TODO: Cut out window area from screenshot
+                // TODO: Build show animation
+                // TODO: Build hide animation
+                // TODO: Reposition AND show window
                 windowRef.Show();
             }
             else
@@ -79,6 +86,7 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
             }
             co_return;
         });
+
 
     // Message pump
     MSG msg = {};
