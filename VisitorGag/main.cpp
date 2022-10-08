@@ -22,7 +22,9 @@ namespace util
     using namespace robmikh::common::uwp;
 }
 
-float CLEARCOLOR[] = { 0.0f, 0.0f, 0.0f, 1.0f }; // RGBA
+winrt::com_ptr<ID2D1Bitmap1> CreateBitmapFromTexture(
+    winrt::com_ptr<ID3D11Texture2D> const& texture,
+    winrt::com_ptr<ID2D1DeviceContext> const& d2dContext);
 
 struct SoftwareGifFrame
 {
@@ -106,9 +108,12 @@ private:
 
 struct CompositionGifPlayer
 {
-    CompositionGifPlayer(winrt::Compositor const& compositor, winrt::CompositionGraphicsDevice const& compGraphics)
+    CompositionGifPlayer(winrt::Compositor const& compositor, winrt::CompositionGraphicsDevice const& compGraphics, winrt::com_ptr<ID2D1Device> const& d2dDevice, winrt::com_ptr<ID3D11Device> const& d3dDevice)
     {
         m_compGraphics = compGraphics;
+        m_d2dDevice = d2dDevice;
+        m_d3dDevice = d3dDevice;
+        winrt::check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, m_d2dContext.put()));
 
         m_visual = compositor.CreateSpriteVisual();
         m_brush = compositor.CreateSurfaceBrush();
@@ -134,14 +139,9 @@ struct CompositionGifPlayer
         {
             auto lock = m_lock.lock();
 
-            auto graphicsInterop = m_compGraphics.as<ABI::Windows::UI::Composition::ICompositionGraphicsDeviceInterop>();
-            winrt::com_ptr<::IUnknown> renderingDevice;
-            winrt::check_hresult(graphicsInterop->GetRenderingDevice(renderingDevice.put()));
-
-            auto d3dDevice = renderingDevice.as<ID3D11Device>();
-            auto d3dMultithread = renderingDevice.as<ID3D11Multithread>();
+            auto d3dMultithread = m_d3dDevice.as<ID3D11Multithread>();
             winrt::com_ptr<ID3D11DeviceContext> d3dContext;
-            d3dDevice->GetImmediateContext(d3dContext.put());
+            m_d3dDevice->GetImmediateContext(d3dContext.put());
 
             if (m_timer != nullptr)
             {
@@ -149,9 +149,29 @@ struct CompositionGifPlayer
                 m_timer = nullptr;
             }
             m_timer = currentQueue.CreateTimer();
+            m_timer.IsRepeating(false);
             m_tick = m_timer.Tick(winrt::auto_revoke, { this, &CompositionGifPlayer::OnTick });
 
             m_image = std::move(image);
+
+            if (m_d2dRenderTarget != nullptr)
+            {
+                m_d2dContext->SetTarget(nullptr);
+                m_d2dRenderTarget = nullptr;
+            }
+            D3D11_TEXTURE2D_DESC desc = {};
+            desc.Width = m_image->Width();
+            desc.Height = m_image->Width();
+            desc.MipLevels = 1;
+            desc.ArraySize = 1;
+            desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+            desc.SampleDesc.Count = 1;
+            winrt::com_ptr<ID3D11Texture2D> renderTargetTexture;
+            winrt::check_hresult(m_d3dDevice->CreateTexture2D(&desc, nullptr, renderTargetTexture.put()));
+            m_d2dRenderTarget = CreateBitmapFromTexture(renderTargetTexture, m_d2dContext);
+            m_d2dContext->SetTarget(m_d2dRenderTarget.get());
+
             auto frames = m_image->Frames();
             m_frames.clear();
             m_frames.reserve(frames.size());
@@ -168,30 +188,44 @@ struct CompositionGifPlayer
                 winrt::check_hresult(byteAccess->GetBuffer(&bytes, &size));
 
                 auto texture = robmikh::common::uwp::CreateTextureFromRawBytes(
-                    d3dDevice,
+                    m_d3dDevice,
                     bytes,
                     frameWidth,
                     frameHeight,
                     DXGI_FORMAT_B8G8R8A8_UNORM);
-                m_frames.push_back(texture);
+                m_frames.push_back(CreateBitmapFromTexture(texture, m_d2dContext));
             }
 
             m_visual.Size({ static_cast<float>(m_image->Width()), static_cast<float>(m_image->Height()) });
             m_surface.Resize({ static_cast<int32_t>(m_image->Width()), static_cast<int32_t>(m_image->Height()) });
             {
-                POINT point = {};
-                auto dxgiSurface = util::SurfaceBeginDraw(m_surface, &point);
-                auto destination = dxgiSurface.as<ID3D11Texture2D>();
-
-                winrt::com_ptr<ID3D11RenderTargetView> renderTargetView;
-                winrt::check_hresult(d3dDevice->CreateRenderTargetView(destination.get(), nullptr, renderTargetView.put()));
-
                 auto d3dLock = util::D3D11DeviceLock(d3dMultithread.get());
+                winrt::TimeSpan delay = {};
+                {
+                    m_d2dContext->BeginDraw();
+                    auto endDraw = wil::scope_exit([&]()
+                        {
+                            winrt::check_hresult(m_d2dContext->EndDraw());
+                        });
 
-                d3dContext->ClearRenderTargetView(renderTargetView.get(), CLEARCOLOR);
+                    m_d2dContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
+                    if (!m_frames.empty())
+                    {
+                        delay = DrawFrameToRenderTarget(0, m_d2dContext);
+                    }
+                }
+                if (delay.count() == 0)
+                {
+                    delay = std::chrono::milliseconds(100);
+                }
+
+                auto surfaceContext = util::SurfaceContext(m_surface);
+                auto surfaceD2DContext = surfaceContext.GetDeviceContext();
+
+                surfaceD2DContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
                 if (!m_frames.empty())
                 {
-                    auto delay = DrawFrame(0, destination, d3dContext);
+                    surfaceD2DContext->DrawImage(m_d2dRenderTarget.get());
                     m_timer.Interval(delay);
                     m_timer.Start();
                 }
@@ -203,63 +237,65 @@ struct CompositionGifPlayer
     }
 
 private:
-    winrt::TimeSpan DrawFrame(size_t index, winrt::com_ptr<ID3D11Texture2D> const& destination, winrt::com_ptr<ID3D11DeviceContext> const& d3dContext)
+    winrt::TimeSpan DrawFrameToRenderTarget(size_t index, winrt::com_ptr<ID2D1DeviceContext> const& d2dContext)
     {
         auto frames = m_image->Frames();
         auto& frame = frames[index];
         auto& frameTexture = m_frames[index];
 
-        D3D11_BOX region = {};
-        region.left = 0;
-        region.right = frame.Rect.Width;
-        region.top = 0;
-        region.bottom = frame.Rect.Height;
-        region.back = 1;
-
-        d3dContext->CopySubresourceRegion(destination.get(), 0, frame.Rect.X, frame.Rect.Y, 0, frameTexture.get(), 0, &region);
+        d2dContext->DrawImage(frameTexture.get(), { static_cast<float>(frame.Rect.X), static_cast<float>(frame.Rect.Y) });
         return frame.Delay;
     }
 
     void OnTick(winrt::DispatcherQueueTimer const& timer, winrt::IInspectable const&)
     {
         auto lock = m_lock.lock();
-
-        auto graphicsInterop = m_compGraphics.as<ABI::Windows::UI::Composition::ICompositionGraphicsDeviceInterop>();
-        winrt::com_ptr<::IUnknown> renderingDevice;
-        winrt::check_hresult(graphicsInterop->GetRenderingDevice(renderingDevice.put()));
-
-        auto d3dDevice = renderingDevice.as<ID3D11Device>();
-        auto d3dMultithread = renderingDevice.as<ID3D11Multithread>();
-        winrt::com_ptr<ID3D11DeviceContext> d3dContext;
-        d3dDevice->GetImmediateContext(d3dContext.put());
-
-        POINT point = {};
-        auto dxgiSurface = util::SurfaceBeginDraw(m_surface, &point);
-        auto endDraw = wil::scope_exit([&]()
-            {
-                util::SurfaceEndDraw(m_surface);
-            });
-        auto destination = dxgiSurface.as<ID3D11Texture2D>();
-
-        winrt::com_ptr<ID3D11RenderTargetView> renderTargetView;
-        winrt::check_hresult(d3dDevice->CreateRenderTargetView(destination.get(), nullptr, renderTargetView.put()));
-
-        auto d3dLock = util::D3D11DeviceLock(d3dMultithread.get());
         m_currentIndex = (m_currentIndex + 1) % m_frames.size();
-        if (m_currentIndex == 0)
+
+        auto d3dMultithread = m_d3dDevice.as<ID3D11Multithread>();
+
+        winrt::TimeSpan delay = {};
         {
-            d3dContext->ClearRenderTargetView(renderTargetView.get(), CLEARCOLOR);
+            m_d2dContext->BeginDraw();
+            auto endDraw = wil::scope_exit([&]()
+                {
+                    winrt::check_hresult(m_d2dContext->EndDraw());
+                });
+
+            if (m_currentIndex == 0)
+            {
+                m_d2dContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
+            }
+            if (!m_frames.empty())
+            {
+                delay = DrawFrameToRenderTarget(m_currentIndex, m_d2dContext);
+            }
         }
-        auto delay = DrawFrame(m_currentIndex, destination, d3dContext);
+        if (delay.count() == 0)
+        {
+            delay = std::chrono::milliseconds(100);
+        }
+
+        {
+            auto surfaceContext = util::SurfaceContext(m_surface);
+            auto surfaceD2DContext = surfaceContext.GetDeviceContext();
+
+            surfaceD2DContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
+            surfaceD2DContext->DrawImage(m_d2dRenderTarget.get());
+        }
         m_timer.Interval(delay);
         m_timer.Start();
     }
 
 private:
     wil::critical_section m_lock = {};
+    winrt::com_ptr<ID2D1Device> m_d2dDevice;
+    winrt::com_ptr<ID2D1DeviceContext> m_d2dContext;
+    winrt::com_ptr<ID2D1Bitmap1> m_d2dRenderTarget;
+    winrt::com_ptr<ID3D11Device> m_d3dDevice;
     winrt::CompositionGraphicsDevice m_compGraphics{ nullptr };
     std::unique_ptr<GifImage> m_image;
-    std::vector<winrt::com_ptr<ID3D11Texture2D>> m_frames;
+    std::vector<winrt::com_ptr<ID2D1Bitmap>> m_frames;
     winrt::SpriteVisual m_visual{ nullptr };
     winrt::CompositionSurfaceBrush m_brush{ nullptr };
     winrt::CompositionDrawingSurface m_surface{ nullptr };
@@ -287,12 +323,14 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     root.Brush(compositor.CreateColorBrush(winrt::Colors::White()));
     target.Root(root);
 
-    // Init D3D
+    // Init D3D and D2D
     auto d3dDevice = util::CreateD3DDevice();
-    auto compGraphics = util::CreateCompositionGraphicsDevice(compositor, d3dDevice.get());
+    auto d2dFactory = util::CreateD2DFactory();
+    auto d2dDevice = util::CreateD2DDevice(d2dFactory, d3dDevice);
+    auto compGraphics = util::CreateCompositionGraphicsDevice(compositor, d2dDevice.get());
 
     // Create the gif player
-    auto gifPlayer = CompositionGifPlayer(compositor, compGraphics);
+    auto gifPlayer = CompositionGifPlayer(compositor, compGraphics, d2dDevice, d3dDevice);
     auto gifVisual = gifPlayer.Root();
     gifVisual.AnchorPoint({ 0.5f, 0.5f });
     gifVisual.RelativeOffsetAdjustment({ 0.5f, 0.5f, 0.0f });
@@ -334,3 +372,12 @@ winrt::IAsyncOperation<winrt::StorageFile> OpenGifFileAsync(HWND modalTo)
     co_return file;
 }
 
+winrt::com_ptr<ID2D1Bitmap1> CreateBitmapFromTexture(
+    winrt::com_ptr<ID3D11Texture2D> const& texture,
+    winrt::com_ptr<ID2D1DeviceContext> const& d2dContext)
+{
+    auto dxgiSurface = texture.as<IDXGISurface>();
+    winrt::com_ptr<ID2D1Bitmap1> bitmap;
+    winrt::check_hresult(d2dContext->CreateBitmapFromDxgiSurface(dxgiSurface.get(), nullptr, bitmap.put()));
+    return bitmap;
+}
