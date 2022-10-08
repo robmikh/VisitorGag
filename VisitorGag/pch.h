@@ -10,6 +10,9 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.Numerics.h>
+#include <winrt/Windows.Storage.h>
+#include <winrt/Windows.Storage.Pickers.h>
+#include <winrt/Windows.Storage.Streams.h>
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.h>
 #include <winrt/Windows.UI.Composition.h>
@@ -18,6 +21,11 @@
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3d11.h>
+#include <winrt/Windows.Graphics.Imaging.h>
+
+// WinRT interop
+#include <windows.ui.composition.interop.h>
+#include <memorybuffer.h>
 
 // WIL
 #include <wil/resource.h>
@@ -28,6 +36,9 @@
 #include <d2d1_3.h>
 #include <wincodec.h>
 
+// Shell
+#include <shobjidl.h>
+
 // STL
 #include <vector>
 #include <string>
@@ -35,6 +46,7 @@
 #include <memory>
 #include <algorithm>
 #include <mutex>
+#include <future>
 
 // robmikh.common
 #include <robmikh.common/composition.interop.h>
