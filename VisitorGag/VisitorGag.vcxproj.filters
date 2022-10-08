@@ -8,9 +8,11 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="MainWindow.cpp" />
+    <ClCompile Include="CompositionGifPlayer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="MainWindow.h" />
+    <ClInclude Include="CompositionGifPlayer.h" />
   </ItemGroup>
 </Project>

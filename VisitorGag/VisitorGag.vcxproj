@@ -129,11 +129,13 @@
     <None Include="PropertySheet.props" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CompositionGifPlayer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="pch.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CompositionGifPlayer.h" />
     <ClInclude Include="MainWindow.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
