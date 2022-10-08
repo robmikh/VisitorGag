@@ -124,6 +124,7 @@ struct CompositionGifPlayer
     }
 
     winrt::Visual Root() const noexcept { return m_visual; }
+    winrt::SizeInt32 Size() const noexcept { return { static_cast<int32_t>(m_image->Width()), static_cast<int32_t>(m_image->Height()) }; }
 
     winrt::IAsyncAction LoadGifAsync(winrt::IRandomAccessStream const& gifStream)
     {
@@ -320,7 +321,6 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     auto target = window.CreateWindowTarget(compositor);
     auto root = compositor.CreateSpriteVisual();
     root.RelativeSizeAdjustment({ 1.0f, 1.0f });
-    root.Brush(compositor.CreateColorBrush(winrt::Colors::White()));
     target.Root(root);
 
     // Init D3D and D2D
@@ -337,15 +337,27 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     root.Children().InsertAtTop(gifVisual);
     // Run the rest of our initialization asynchronously on the DispatcherQueue
     auto queue = controller.DispatcherQueue();
-    auto windowHandle = window.m_window;
-    queue.TryEnqueue([windowHandle, &gifPlayer]() -> winrt::fire_and_forget
+    queue.TryEnqueue([&window, &gifPlayer]() -> winrt::fire_and_forget
         {
+            auto dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
+            auto&& windowRef = window;
             auto&& player = gifPlayer;
 
             // Load a gif file
-            auto file = co_await OpenGifFileAsync(windowHandle);
-            auto stream = co_await file.OpenReadAsync();
-            co_await player.LoadGifAsync(stream);
+            auto file = co_await OpenGifFileAsync(windowRef.m_window);
+            if (file != nullptr)
+            {
+                auto stream = co_await file.OpenReadAsync();
+                co_await dispatcherQueue;
+                co_await player.LoadGifAsync(stream);
+                windowRef.Resize(player.Size());
+                windowRef.Show();
+            }
+            else
+            {
+                co_await dispatcherQueue;
+                PostQuitMessage(0);
+            }
             co_return;
         });
 

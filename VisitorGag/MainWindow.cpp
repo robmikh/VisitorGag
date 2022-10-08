@@ -1,6 +1,11 @@
 #include "pch.h"
 #include "MainWindow.h"
 
+namespace winrt
+{
+    using namespace Windows::Graphics;
+}
+
 const std::wstring MainWindow::ClassName = L"VisitorGag.MainWindow";
 std::once_flag MainWindowClassRegistration;
 
@@ -24,8 +29,8 @@ MainWindow::MainWindow(std::wstring const& titleString, int width, int height)
 
     std::call_once(MainWindowClassRegistration, []() { RegisterWindowClass(); });
 
-    auto exStyle = WS_EX_NOREDIRECTIONBITMAP;
-    auto style = WS_OVERLAPPEDWINDOW;
+    auto exStyle = WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TOPMOST;
+    auto style = WS_POPUP;
 
     RECT rect = { 0, 0, width, height};
     winrt::check_bool(AdjustWindowRectEx(&rect, style, false, exStyle));
@@ -35,12 +40,25 @@ MainWindow::MainWindow(std::wstring const& titleString, int width, int height)
     winrt::check_bool(CreateWindowExW(exStyle, ClassName.c_str(), titleString.c_str(), style,
         CW_USEDEFAULT, CW_USEDEFAULT, adjustedWidth, adjustedHeight, nullptr, nullptr, instance, this));
     WINRT_ASSERT(m_window);
-
-    ShowWindow(m_window, SW_SHOW);
-    UpdateWindow(m_window);
 }
 
 LRESULT MainWindow::MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam)
 {
     return base_type::MessageHandler(message, wparam, lparam);
+}
+
+void MainWindow::Show()
+{
+    ShowWindow(m_window, SW_SHOW);
+    UpdateWindow(m_window);
+}
+
+void MainWindow::Hide()
+{
+    ShowWindow(m_window, SW_HIDE);
+}
+
+void MainWindow::Resize(winrt::SizeInt32 const& size)
+{
+    SetWindowPos(m_window, nullptr, 0, 0, size.Width, size.Height, SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
 }
