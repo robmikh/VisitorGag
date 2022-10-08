@@ -7,9 +7,8 @@ struct MainWindow : robmikh::common::desktop::DesktopWindow<MainWindow>
 	MainWindow(std::wstring const& titleString, int width, int height);
 	LRESULT MessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam);
 
-	void Show();
+	void Show(int32_t x, int32_t y, winrt::Windows::Graphics::SizeInt32 const& size);
 	void Hide();
-	void Resize(winrt::Windows::Graphics::SizeInt32 const& size);
 
 private:
 	static void RegisterWindowClass();

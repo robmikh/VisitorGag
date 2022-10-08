@@ -30,6 +30,9 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     // Initialize COM
     winrt::init_apartment(winrt::apartment_type::single_threaded);
 
+    // No virtualized coordinates
+    winrt::check_bool(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2));
+
     // Create the DispatcherQueue that the compositor needs to run
     auto controller = util::CreateDispatcherQueueControllerForCurrentThread();
 
@@ -55,11 +58,12 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     root.Children().InsertAtTop(gifVisual);
     // Run the rest of our initialization asynchronously on the DispatcherQueue
     auto queue = controller.DispatcherQueue();
-    queue.TryEnqueue([&window, &gifPlayer]() -> winrt::fire_and_forget
+    queue.TryEnqueue([&window, &gifPlayer, d3dDevice]() -> winrt::fire_and_forget
         {
             auto dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
             auto&& windowRef = window;
             auto&& player = gifPlayer;
+            auto d3dDeviceRef = d3dDevice;
 
             // Load a gif file
             auto file = co_await OpenGifFileAsync(windowRef.m_window);
@@ -69,15 +73,31 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
                 co_await dispatcherQueue;
                 co_await player.LoadGifAsync(stream);
                 player.Play();
-                windowRef.Resize(player.Size());
+                auto gifSize = player.Size();
 
-                // TODO: Generate random window position
+                // Generate random window position
+                auto dxgiDevice = d3dDeviceRef.as<IDXGIDevice>();
+                winrt::com_ptr<IDXGIAdapter> dxgiAdapter;
+                winrt::check_hresult(dxgiDevice->GetAdapter(dxgiAdapter.put()));
+                winrt::com_ptr<IDXGIOutput> dxgiOutput;
+                winrt::check_hresult(dxgiAdapter->EnumOutputs(0, dxgiOutput.put()));
+                DXGI_OUTPUT_DESC outputDesc = {};
+                winrt::check_hresult(dxgiOutput->GetDesc(&outputDesc));
+                auto minX = outputDesc.DesktopCoordinates.left;
+                auto minY = outputDesc.DesktopCoordinates.top;
+                auto maxX = (outputDesc.DesktopCoordinates.right - outputDesc.DesktopCoordinates.left) - gifSize.Width;
+                auto maxY = (outputDesc.DesktopCoordinates.bottom - outputDesc.DesktopCoordinates.top) - gifSize.Height;
+                std::random_device randomDevice;
+                std::uniform_int_distribution<int> distX(minX, maxX);
+                std::uniform_int_distribution<int> distY(minY, maxY);
+                auto x = distX(randomDevice);
+                auto y = distY(randomDevice);
                 // TODO: Capture screen with DDA
                 // TODO: Cut out window area from screenshot
                 // TODO: Build show animation
                 // TODO: Build hide animation
-                // TODO: Reposition AND show window
-                windowRef.Show();
+                // Show window
+                windowRef.Show(x, y, gifSize);
             }
             else
             {

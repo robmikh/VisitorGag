@@ -47,18 +47,13 @@ LRESULT MainWindow::MessageHandler(UINT const message, WPARAM const wparam, LPAR
     return base_type::MessageHandler(message, wparam, lparam);
 }
 
-void MainWindow::Show()
+void MainWindow::Show(int32_t x, int32_t y, winrt::SizeInt32 const& size)
 {
-    ShowWindow(m_window, SW_SHOW);
+    SetWindowPos(m_window, HWND_TOPMOST, x, y, size.Width, size.Height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     UpdateWindow(m_window);
 }
 
 void MainWindow::Hide()
 {
     ShowWindow(m_window, SW_HIDE);
-}
-
-void MainWindow::Resize(winrt::SizeInt32 const& size)
-{
-    SetWindowPos(m_window, nullptr, 0, 0, size.Width, size.Height, SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
 }
