@@ -56,14 +56,28 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     gifVisual.AnchorPoint({ 0.5f, 0.5f });
     gifVisual.RelativeOffsetAdjustment({ 0.5f, 0.5f, 0.0f });
     root.Children().InsertAtTop(gifVisual);
+
+    // DEBUG: Remove later
+    auto debugCompGraphics = util::CreateCompositionGraphicsDevice(compositor, d3dDevice.get());
+    auto debugSurface = debugCompGraphics.CreateDrawingSurface2({ 1, 1 }, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, winrt::DirectXAlphaMode::Premultiplied);
+    auto debugVisual = compositor.CreateSpriteVisual();
+    debugVisual.RelativeSizeAdjustment({ 1, 1 });
+    debugVisual.Brush(compositor.CreateSurfaceBrush(debugSurface));
+    root.Children().InsertAtTop(debugVisual);
+
     // Run the rest of our initialization asynchronously on the DispatcherQueue
     auto queue = controller.DispatcherQueue();
-    queue.TryEnqueue([&window, &gifPlayer, d3dDevice]() -> winrt::fire_and_forget
+    queue.TryEnqueue([&window, &gifPlayer, d3dDevice, debugSurface]() -> winrt::fire_and_forget
         {
             auto dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
             auto&& windowRef = window;
             auto&& player = gifPlayer;
             auto d3dDeviceRef = d3dDevice;
+            winrt::com_ptr<ID3D11DeviceContext> d3dContext;
+            d3dDevice->GetImmediateContext(d3dContext.put());
+
+            // DEBUG: Remove later
+            auto debugSurfaceRef = debugSurface;
 
             // Load a gif file
             auto file = co_await OpenGifFileAsync(windowRef.m_window);
@@ -92,8 +106,58 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
                 std::uniform_int_distribution<int> distY(minY, maxY);
                 auto x = distX(randomDevice);
                 auto y = distY(randomDevice);
-                // TODO: Capture screen with DDA
-                // TODO: Cut out window area from screenshot
+
+                // Capture screen with DDA
+                winrt::com_ptr<ID3D11Texture2D> windowAreaTexture;
+                {
+                    auto output6 = dxgiOutput.as<IDXGIOutput6>();
+                    winrt::com_ptr<IDXGIOutputDuplication> duplication;
+                    winrt::check_hresult(output6->DuplicateOutput(d3dDeviceRef.get(), duplication.put()));
+                    winrt::com_ptr<IDXGIResource> ddaResource;
+                    DXGI_OUTDUPL_FRAME_INFO frameInfo = {};
+                    winrt::check_hresult(duplication->AcquireNextFrame(INFINITE, &frameInfo, ddaResource.put()));
+                    auto ddaTexture = ddaResource.as<ID3D11Texture2D>();
+
+                    // Cut out window area from screenshot
+                    D3D11_TEXTURE2D_DESC desc = {};
+                    desc.Width = static_cast<uint32_t>(gifSize.Width);
+                    desc.Height = static_cast<uint32_t>(gifSize.Height);
+                    desc.MipLevels = 1;
+                    desc.ArraySize = 1;
+                    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+                    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                    desc.SampleDesc.Count = 1;
+                    winrt::check_hresult(d3dDeviceRef->CreateTexture2D(&desc, nullptr, windowAreaTexture.put()));
+                    D3D11_BOX region = {};
+                    region.left = x;
+                    region.right = x + gifSize.Width;
+                    region.top = y;
+                    region.bottom = y + gifSize.Height;
+                    region.back = 1;
+                    d3dContext->CopySubresourceRegion(windowAreaTexture.get(), 0, 0, 0, 0, ddaTexture.get(), 0, &region);
+                    winrt::check_hresult(duplication->ReleaseFrame());
+                }
+
+                // DEBUG: Show the window area texture
+                debugSurfaceRef.Resize(gifSize);
+                {
+                    POINT point = {};
+                    auto dxgiSurface = util::SurfaceBeginDraw(debugSurfaceRef, &point);
+                    auto endDraw = wil::scope_exit([debugSurfaceRef]()
+                        {
+                            util::SurfaceEndDraw(debugSurfaceRef);
+                        });
+                    auto destination = dxgiSurface.as<ID3D11Texture2D>();
+
+                    D3D11_BOX region = {};
+                    region.left = 0;
+                    region.right = gifSize.Width;
+                    region.top = 0;
+                    region.bottom = gifSize.Height;
+                    region.back = 1;
+                    d3dContext->CopySubresourceRegion(destination.get(), 0, point.x, point.y, 0, windowAreaTexture.get(), 0, &region);
+                }
+                
                 // TODO: Build show animation
                 // TODO: Build hide animation
                 // Show window
