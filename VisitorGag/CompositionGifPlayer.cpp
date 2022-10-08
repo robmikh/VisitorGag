@@ -40,6 +40,10 @@ std::future<std::unique_ptr<GifImage>> GifImage::LoadAsync(winrt::IRandomAccessS
     gifImage->m_width = decoder.PixelWidth();
     gifImage->m_height = decoder.PixelHeight();
     auto numFrames = decoder.FrameCount();
+    if (numFrames == 0)
+    {
+        throw winrt::hresult_error(E_FAIL, L"Gifs with zero frames are not supported");
+    }
     gifImage->m_frames.reserve(numFrames);
 
     for (uint32_t i = 0; i < numFrames; i++)
@@ -104,6 +108,25 @@ CompositionGifPlayer::CompositionGifPlayer(winrt::Compositor const& compositor, 
 
     m_surface = m_compGraphics.CreateDrawingSurface2({ 1, 1 }, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, winrt::DirectXAlphaMode::Premultiplied);
     m_brush.Surface(m_surface);
+}
+
+void CompositionGifPlayer::Play()
+{
+    auto lock = m_lock.lock();
+
+    if (!m_frames.empty())
+    {
+        m_timer.Start();
+    }
+}
+
+void CompositionGifPlayer::Stop()
+{
+    auto lock = m_lock.lock();
+    if (m_timer != nullptr)
+    {
+        m_timer.Stop();
+    }
 }
 
 winrt::IAsyncAction CompositionGifPlayer::LoadGifAsync(winrt::IRandomAccessStream const& gifStream)
@@ -190,10 +213,8 @@ winrt::IAsyncAction CompositionGifPlayer::LoadGifAsync(winrt::IRandomAccessStrea
                     });
 
                 m_d2dContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
-                if (!m_frames.empty())
-                {
-                    delay = DrawFrameToRenderTarget(0, m_d2dContext);
-                }
+                WINRT_ASSERT(!m_frames.empty());
+                delay = DrawFrameToRenderTarget(0, m_d2dContext);
             }
             if (delay.count() == 0)
             {
@@ -204,12 +225,9 @@ winrt::IAsyncAction CompositionGifPlayer::LoadGifAsync(winrt::IRandomAccessStrea
             auto surfaceD2DContext = surfaceContext.GetDeviceContext();
 
             surfaceD2DContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
-            if (!m_frames.empty())
-            {
-                surfaceD2DContext->DrawImage(m_d2dRenderTarget.get());
-                m_timer.Interval(delay);
-                m_timer.Start();
-            }
+            WINRT_ASSERT(!m_frames.empty());
+            surfaceD2DContext->DrawImage(m_d2dRenderTarget.get());
+            m_timer.Interval(delay);
             m_currentIndex = 0;
         }
     }

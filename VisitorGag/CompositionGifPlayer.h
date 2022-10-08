@@ -34,6 +34,8 @@ struct CompositionGifPlayer
     winrt::Windows::UI::Composition::Visual Root() const noexcept { return m_visual; }
     winrt::Windows::Graphics::SizeInt32 Size() const noexcept { return { static_cast<int32_t>(m_image->Width()), static_cast<int32_t>(m_image->Height()) }; }
 
+    void Play();
+    void Stop();
     winrt::Windows::Foundation::IAsyncAction LoadGifAsync(winrt::Windows::Storage::Streams::IRandomAccessStream const& gifStream);
 
 private:

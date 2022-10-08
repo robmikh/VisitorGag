@@ -68,6 +68,7 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
                 auto stream = co_await file.OpenReadAsync();
                 co_await dispatcherQueue;
                 co_await player.LoadGifAsync(stream);
+                player.Play();
                 windowRef.Resize(player.Size());
                 windowRef.Show();
             }
