@@ -12,7 +12,7 @@ enum class CaptureMode
 
 struct App
 {
-	App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode, bool demoMode);
+	App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode, bool demoMode, bool noLoop);
 
 	winrt::Windows::Foundation::IAsyncOperation<bool> TryLoadGifFromPickerAsync();
 	winrt::Windows::Foundation::IAsyncAction LoadGifAsync(winrt::Windows::Storage::Streams::IRandomAccessStream stream);

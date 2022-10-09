@@ -29,7 +29,8 @@ struct CompositionGifPlayer
         winrt::Windows::UI::Composition::Compositor const& compositor,
         winrt::Windows::UI::Composition::CompositionGraphicsDevice const& compGraphics,
         winrt::com_ptr<ID2D1Device> const& d2dDevice,
-        winrt::com_ptr<ID3D11Device> const& d3dDevice);
+        winrt::com_ptr<ID3D11Device> const& d3dDevice,
+        bool loop);
 
     winrt::Windows::UI::Composition::Visual Root() const noexcept { return m_visual; }
     winrt::Windows::Graphics::SizeInt32 Size() const noexcept { return { static_cast<int32_t>(m_image->Width()), static_cast<int32_t>(m_image->Height()) }; }
@@ -61,4 +62,5 @@ private:
     winrt::Windows::System::DispatcherQueueTimer m_timer{ nullptr };
     winrt::Windows::System::DispatcherQueueTimer::Tick_revoker m_tick;
     size_t m_currentIndex = 0;
+    bool m_loop = false;
 };

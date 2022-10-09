@@ -39,7 +39,7 @@ winrt::IAsyncOperation<winrt::StorageFile> OpenGifFileAsync(HWND modalTo)
     co_return file;
 }
 
-App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode, bool demoMode)
+App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode, bool demoMode, bool loop)
 {
     m_dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
     m_gifPath = path;
@@ -71,7 +71,7 @@ App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode ca
     m_compGraphics = util::CreateCompositionGraphicsDevice(m_compositor, m_d3dDevice.get());
 
     // Create the gif player
-    m_gifPlayer = std::make_unique<CompositionGifPlayer>(m_compositor, m_compGraphics, m_d2dDevice, m_d3dDevice);
+    m_gifPlayer = std::make_unique<CompositionGifPlayer>(m_compositor, m_compGraphics, m_d2dDevice, m_d3dDevice, loop);
     auto gifVisual = m_gifPlayer->Root();
     gifVisual.AnchorPoint({ 0.5f, 0.5f });
     gifVisual.RelativeOffsetAdjustment({ 0.5f, 0.5f, 0.0f });

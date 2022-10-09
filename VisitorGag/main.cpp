@@ -31,6 +31,7 @@ struct Options
     std::optional<std::filesystem::path> FilePath = std::nullopt;
     CaptureMode CaptureMode = CaptureMode::Default;
     bool DemoMode = false;
+    bool NoLoop = false;
 };
 
 std::optional<Options> ParseOptions(int argc, wchar_t* argv[]);
@@ -72,7 +73,7 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     auto controller = util::CreateDispatcherQueueControllerForCurrentThread();
 
     // Create our app
-    auto app = App(options.DxDebug, options.FilePath, options.CaptureMode, options.DemoMode);
+    auto app = App(options.DxDebug, options.FilePath, options.CaptureMode, options.DemoMode, !options.NoLoop);
 
     // Run the rest of our initialization asynchronously on the DispatcherQueue
     auto queue = controller.DispatcherQueue();
@@ -124,6 +125,7 @@ std::optional<Options> ParseOptions(int argc, wchar_t* argv[])
         wprintf(L"  -forceWGC                 (optional) Force the use of Windows.Graphics.Capture.\n");
         wprintf(L"  -forceDDA                 (optional) Force the use of the Desktop Duplication API.\n");
         wprintf(L"  -demoMode                 (optional) Always show the visitor in the same spot for demoing.\n");
+        wprintf(L"  -noLoop                   (optional) Don't loop the gif.\n");
         wprintf(L"\n");
         wprintf(L"Options:\n");
         wprintf(L"  -gif <path to gif file>   (optional) Path to a gif file. A picker will be shown if none is provided.\n");
@@ -135,6 +137,7 @@ std::optional<Options> ParseOptions(int argc, wchar_t* argv[])
     bool forceDDA = GetFlag(args, L"-forceDDA") || GetFlag(args, L"/forceDDA");
     auto captureMode = CaptureMode::Default;
     bool demoMode = GetFlag(args, L"-demoMode") || GetFlag(args, L"/demoMode");
+    bool noLoop = GetFlag(args, L"-noLoop") || GetFlag(args, L"/noLoop");
     if (forceWGC && forceDDA)
     {
         wprintf(L"Both \"-forceWGC\" and \"-forceDDA\" cannot be set!\n");
@@ -177,6 +180,10 @@ std::optional<Options> ParseOptions(int argc, wchar_t* argv[])
     {
         wprintf(L"Using demo mode...\n");
     }
+    if (noLoop)
+    {
+        wprintf(L"Gif will not loop...\n");
+    }
     
-    return std::optional(Options{ dxDebug, filePath, captureMode, demoMode });
+    return std::optional(Options{ dxDebug, filePath, captureMode, demoMode, noLoop });
 }

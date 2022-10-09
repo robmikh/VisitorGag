@@ -99,7 +99,8 @@ CompositionGifPlayer::CompositionGifPlayer(
     winrt::Compositor const& compositor, 
     winrt::CompositionGraphicsDevice const& compGraphics, 
     winrt::com_ptr<ID2D1Device> const& d2dDevice, 
-    winrt::com_ptr<ID3D11Device> const& d3dDevice)
+    winrt::com_ptr<ID3D11Device> const& d3dDevice,
+    bool loop)
 {
     m_compGraphics = compGraphics;
     m_d2dDevice = d2dDevice;
@@ -113,6 +114,7 @@ CompositionGifPlayer::CompositionGifPlayer(
 
     m_surface = m_compGraphics.CreateDrawingSurface2({ 1, 1 }, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, winrt::DirectXAlphaMode::Premultiplied);
     m_brush.Surface(m_surface);
+    m_loop = loop;
 }
 
 void CompositionGifPlayer::Play()
@@ -121,6 +123,30 @@ void CompositionGifPlayer::Play()
 
     if (!m_frames.empty())
     {
+        {
+            auto d3dMultithread = m_d3dDevice.as<ID3D11Multithread>();
+            auto d3dLock = util::D3D11DeviceLock(d3dMultithread.get());
+            winrt::TimeSpan delay = {};
+            {
+                m_d2dContext->BeginDraw();
+                auto endDraw = wil::scope_exit([&]()
+                    {
+                        winrt::check_hresult(m_d2dContext->EndDraw());
+                    });
+
+                m_d2dContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
+                WINRT_ASSERT(!m_frames.empty());
+                delay = DrawFrameToRenderTarget(0, m_d2dContext);
+            }
+            if (delay.count() == 0)
+            {
+                delay = std::chrono::milliseconds(100);
+            }
+
+            UpdateSurface();
+            m_timer.Interval(delay);
+            m_currentIndex = 0;
+        }
         m_timer.Start();
     }
 }
@@ -247,6 +273,11 @@ void CompositionGifPlayer::OnTick(winrt::DispatcherQueueTimer const&, winrt::IIn
 {
     auto lock = m_lock.lock();
     m_currentIndex = (m_currentIndex + 1) % m_frames.size();
+    if (m_currentIndex == 0 && !m_loop)
+    {
+        m_timer.Stop();
+        return;
+    }
 
     auto d3dMultithread = m_d3dDevice.as<ID3D11Multithread>();
 
