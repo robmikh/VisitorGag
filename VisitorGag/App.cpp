@@ -39,6 +39,22 @@ winrt::IAsyncOperation<winrt::StorageFile> OpenGifFileAsync(HWND modalTo)
     co_return file;
 }
 
+void SaveRawTexture(winrt::com_ptr<ID3D11Texture2D> const& texture, std::string const& fileName)
+{
+    D3D11_TEXTURE2D_DESC desc = {};
+    texture->GetDesc(&desc);
+
+    auto filePath = std::filesystem::current_path();
+    {
+        std::stringstream fileNameStream;
+        fileNameStream << fileName.c_str() << "_" << desc.Width << "x" << desc.Height << ".bin";
+        filePath /= fileNameStream.str();
+    }
+    std::ofstream file(filePath, std::ios::out | std::ios::binary);
+    auto bytes = util::CopyBytesFromTexture(texture);
+    file.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
 App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode)
 {
     m_dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
@@ -256,15 +272,7 @@ void App::CaptureAndAnimate()
     }
 
     // DEBUG: Remove later
-    auto debugFilePath = std::filesystem::current_path();
-    {
-        std::stringstream fileNameStream;
-        fileNameStream << "windowAreaTexture_" << gifSize.Width << "x" << gifSize.Height << ".bin";
-        debugFilePath /= fileNameStream.str();
-    }
-    std::ofstream debugFile(debugFilePath, std::ios::out | std::ios::binary);
-    auto debugBytes = util::CopyBytesFromTexture(windowAreaTexture);
-    debugFile.write(reinterpret_cast<const char*>(debugBytes.data()), debugBytes.size());
+    SaveRawTexture(windowAreaTexture, "windowAreaTexture");
 
     // Apply the window area texture
     m_shadeSurface.Resize(gifSize);
