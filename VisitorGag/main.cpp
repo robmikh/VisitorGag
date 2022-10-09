@@ -7,7 +7,9 @@ namespace winrt
 {
     using namespace Windows::Foundation;
     using namespace Windows::Foundation::Numerics;
+    using namespace Windows::Foundation::Metadata;
     using namespace Windows::Graphics;
+    using namespace Windows::Graphics::Capture;
     using namespace Windows::Graphics::DirectX;
     using namespace Windows::Graphics::Imaging;
     using namespace Windows::Storage;
@@ -45,7 +47,15 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     queue.TryEnqueue([&app]() -> winrt::fire_and_forget
         {
             auto dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
-            if (!co_await app.TryLoadGifFromPickerAsync())
+            auto&& appRef = app;
+
+            // Request access to the capture border
+            if (winrt::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::GraphicsCaptureSession>(), L"IsBorderRequired"))
+            {
+                co_await winrt::GraphicsCaptureAccess::RequestAccessAsync(winrt::GraphicsCaptureAccessKind::Borderless);
+            }
+
+            if (!co_await appRef.TryLoadGifFromPickerAsync())
             {
                 co_await dispatcherQueue;
                 PostQuitMessage(0);

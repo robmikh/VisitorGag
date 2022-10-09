@@ -14,6 +14,8 @@ private:
 
 	void PlayShowAnimation(winrt::Windows::Foundation::TimeSpan const& duration);
 	void PlayHideAnimation(winrt::Windows::Foundation::TimeSpan const& duration);
+	void CaptureAndAnimate();
+	winrt::fire_and_forget Rerun();
 
 private:
 	std::unique_ptr<MainWindow> m_window;

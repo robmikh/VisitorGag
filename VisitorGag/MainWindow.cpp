@@ -54,6 +54,8 @@ LRESULT MainWindow::MessageHandler(UINT const message, WPARAM const wparam, LPAR
             m_lButtonUp();
         }
         break;
+    case WM_DPICHANGED:
+        break;
     default:
         return base_type::MessageHandler(message, wparam, lparam);
     }

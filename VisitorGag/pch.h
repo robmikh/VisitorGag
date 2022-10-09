@@ -10,6 +10,7 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.Numerics.h>
+#include <winrt/Windows.Foundation.Metadata.h>
 #include <winrt/Windows.Storage.h>
 #include <winrt/Windows.Storage.Pickers.h>
 #include <winrt/Windows.Storage.Streams.h>
@@ -49,6 +50,9 @@
 #include <future>
 #include <random>
 #include <functional>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 // robmikh.common
 #include <robmikh.common/composition.interop.h>
