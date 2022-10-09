@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "App.h"
+#include "DDACaptureSource.h"
+#include "WGCCaptureSource.h"
 
 namespace winrt
 {
@@ -91,6 +93,17 @@ App::App()
     m_leftShadeBrush.Surface(m_shadeSurface);
     m_rightShadeBrush.Surface(m_shadeSurface);
 
+    // Pick a capture method
+    // Starting with Windows 10 build 20348, we can use Windows.Graphics.Capture instead and disable the border.
+    if (winrt::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::GraphicsCaptureSession>(), L"IsBorderRequired"))
+    {
+        m_captureSourceFactory = std::make_shared<WGCCaptureSourceFactory>();
+    }
+    else
+    {
+        m_captureSourceFactory = std::make_shared<DDACaptureSourceFactory>();
+    }
+
     // Setup callback
     m_window->OnLButtonUp(std::bind(&App::OnLButtonUp, this));
 }
@@ -175,17 +188,12 @@ void App::CaptureAndAnimate()
     auto gifSize = m_gifPlayer->Size();
 
     // Generate random window position
-    auto dxgiDevice = m_d3dDevice.as<IDXGIDevice>();
-    winrt::com_ptr<IDXGIAdapter> dxgiAdapter;
-    winrt::check_hresult(dxgiDevice->GetAdapter(dxgiAdapter.put()));
-    winrt::com_ptr<IDXGIOutput> dxgiOutput;
-    winrt::check_hresult(dxgiAdapter->EnumOutputs(0, dxgiOutput.put()));
-    DXGI_OUTPUT_DESC outputDesc = {};
-    winrt::check_hresult(dxgiOutput->GetDesc(&outputDesc));
-    auto minX = outputDesc.DesktopCoordinates.left;
-    auto minY = outputDesc.DesktopCoordinates.top;
-    auto maxX = (outputDesc.DesktopCoordinates.right - outputDesc.DesktopCoordinates.left) - gifSize.Width;
-    auto maxY = (outputDesc.DesktopCoordinates.bottom - outputDesc.DesktopCoordinates.top) - gifSize.Height;
+    auto captureSource = m_captureSourceFactory->CreateCaptureSource(m_d3dDevice);
+    auto desktopCoordinates = captureSource->DesktopCoordinates();
+    auto minX = desktopCoordinates.left;
+    auto minY = desktopCoordinates.top;
+    auto maxX = (desktopCoordinates.right - desktopCoordinates.left) - gifSize.Width;
+    auto maxY = (desktopCoordinates.bottom - desktopCoordinates.top) - gifSize.Height;
 
     std::uniform_int_distribution<int> distX(minX, maxX);
     std::uniform_int_distribution<int> distY(minY, maxY);
@@ -195,51 +203,7 @@ void App::CaptureAndAnimate()
     // Capture screen with DDA
     winrt::com_ptr<ID3D11Texture2D> windowAreaTexture;
     {
-        winrt::com_ptr<ID3D11Texture2D> captureTexture;
-        // Starting with Windows 10 build 20348, we can use Windows.Graphics.Capture instead and disable the border.
-        if (winrt::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::GraphicsCaptureSession>(), L"IsBorderRequired"))
-        {
-            auto primaryMonitor = winrt::check_pointer(MonitorFromWindow(nullptr, MONITOR_DEFAULTTOPRIMARY));
-            auto item = util::CreateCaptureItemForMonitor(primaryMonitor);
-            auto itemSize = item.Size();
-            auto device = CreateDirect3DDevice(m_d3dDevice.as<IDXGIDevice>().get());
-            auto framePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(device, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, itemSize);
-            auto session = framePool.CreateCaptureSession(item);
-            session.IsCursorCaptureEnabled(false);
-            session.IsBorderRequired(false);
-            
-            wil::shared_event captureEvent(wil::EventOptions::ManualReset);
-            winrt::Direct3D11CaptureFrame frame{ nullptr };
-            framePool.FrameArrived([&frame, captureEvent](auto&& framePool, auto&&)
-                {
-                    frame = framePool.TryGetNextFrame();
-                    captureEvent.SetEvent();
-                });
-
-            session.StartCapture();
-            captureEvent.wait();
-            framePool.Close();
-            session.Close();
-
-            captureTexture = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
-        }
-        else
-        {
-            auto output6 = dxgiOutput.as<IDXGIOutput6>();
-            winrt::com_ptr<IDXGIOutputDuplication> duplication;
-            winrt::check_hresult(output6->DuplicateOutput(m_d3dDevice.get(), duplication.put()));
-            winrt::com_ptr<IDXGIResource> ddaResource;
-            DXGI_OUTDUPL_FRAME_INFO frameInfo = {};
-            winrt::check_hresult(duplication->AcquireNextFrame(INFINITE, &frameInfo, ddaResource.put()));
-            // Windows 10 build 19044 seems to have an issue where subsequent calls to DDA
-            // can get an empty frame. As a workaround, always get the second frame.
-            ddaResource = nullptr;
-            winrt::check_hresult(duplication->ReleaseFrame());
-            winrt::check_hresult(duplication->AcquireNextFrame(INFINITE, &frameInfo, ddaResource.put()));
-            auto ddaTexture = ddaResource.as<ID3D11Texture2D>();
-            captureTexture = util::CopyD3DTexture(m_d3dDevice, ddaTexture, false);
-            winrt::check_hresult(duplication->ReleaseFrame());
-        }
+        auto captureTexture = captureSource->Capture();
 
         // Cut out window area from screenshot
         D3D11_TEXTURE2D_DESC desc = {};

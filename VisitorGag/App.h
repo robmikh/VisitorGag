@@ -1,6 +1,7 @@
 #pragma once
 #include "MainWindow.h"
 #include "CompositionGifPlayer.h"
+#include "ICaptureSource.h"
 
 struct App
 {
@@ -38,4 +39,5 @@ private:
 	winrt::Windows::System::DispatcherQueue m_dispatcherQueue{ nullptr };
 	std::random_device m_randomDevice;
 	std::unique_ptr<CompositionGifPlayer> m_gifPlayer;
+	std::shared_ptr<ICaptureSourceFactory> m_captureSourceFactory;
 };

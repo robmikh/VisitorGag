@@ -10,12 +10,17 @@
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="CompositionGifPlayer.cpp" />
     <ClCompile Include="App.cpp" />
+    <ClCompile Include="DDACaptureSource.cpp" />
+    <ClCompile Include="WGCCaptureSource.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="MainWindow.h" />
     <ClInclude Include="CompositionGifPlayer.h" />
     <ClInclude Include="App.h" />
+    <ClInclude Include="ICaptureSource.h" />
+    <ClInclude Include="DDACaptureSource.h" />
+    <ClInclude Include="WGCCaptureSource.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="$(MSBuildThisFileDirectory)..\..\natvis\wil.natvis" />
