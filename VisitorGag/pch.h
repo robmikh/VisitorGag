@@ -48,6 +48,7 @@
 #include <mutex>
 #include <future>
 #include <random>
+#include <functional>
 
 // robmikh.common
 #include <robmikh.common/composition.interop.h>

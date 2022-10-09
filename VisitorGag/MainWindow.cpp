@@ -49,7 +49,10 @@ LRESULT MainWindow::MessageHandler(UINT const message, WPARAM const wparam, LPAR
     switch (message)
     {
     case WM_LBUTTONUP:
-        Hide();
+        if (m_lButtonUp != nullptr)
+        {
+            m_lButtonUp();
+        }
         break;
     default:
         return base_type::MessageHandler(message, wparam, lparam);
@@ -57,78 +60,18 @@ LRESULT MainWindow::MessageHandler(UINT const message, WPARAM const wparam, LPAR
     return 0;
 }
 
-void MainWindow::SetShadeVisuals(winrt::Visual const& leftShadeVisual, winrt::Visual const& rightShadeVisual)
-{
-    m_leftShadeVisual = leftShadeVisual;
-    m_rightShadeVisual = rightShadeVisual;
-    m_compositor = m_leftShadeVisual.Compositor();
-}
-
 void MainWindow::Show(int32_t x, int32_t y, winrt::SizeInt32 const& size)
 {
     SetWindowPos(m_window, HWND_TOPMOST, x, y, size.Width, size.Height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     UpdateWindow(m_window);
-
-    if (m_compositor != nullptr)
-    {
-        PlayShowAnimation(std::chrono::milliseconds(800));
-    }
 }
 
 void MainWindow::Hide()
 {
-    if (m_compositor != nullptr)
-    {
-        auto batch = m_compositor.CreateScopedBatch(winrt::CompositionBatchTypes::Animation);
-        PlayHideAnimation(std::chrono::milliseconds(800));
-        batch.Completed([&](auto&&, auto&&)
-            {
-                ShowWindow(m_window, SW_HIDE);
-            });
-        batch.End();
-    }
-    else
-    {
-        ShowWindow(m_window, SW_HIDE);
-    }
+    ShowWindow(m_window, SW_HIDE);
 }
 
-void MainWindow::PlayShowAnimation(winrt::TimeSpan const& duration)
+void MainWindow::OnLButtonUp(std::function<void()> const& callback)
 {
-    auto leftAnimation = m_compositor.CreateScalarKeyFrameAnimation();
-    leftAnimation.InsertKeyFrame(0.0f, 0.0f);
-    leftAnimation.InsertKeyFrame(1.0f, -0.5f);
-    leftAnimation.IterationBehavior(winrt::AnimationIterationBehavior::Count);
-    leftAnimation.IterationCount(1);
-    leftAnimation.Duration(duration);
-
-    auto rightAnimation = m_compositor.CreateScalarKeyFrameAnimation();
-    rightAnimation.InsertKeyFrame(0.0f, 0.5f);
-    rightAnimation.InsertKeyFrame(1.0f, 1.0f);
-    rightAnimation.IterationBehavior(winrt::AnimationIterationBehavior::Count);
-    rightAnimation.IterationCount(1);
-    rightAnimation.Duration(duration);
-
-    m_leftShadeVisual.StartAnimation(L"RelativeOffsetAdjustment.X", leftAnimation);
-    m_rightShadeVisual.StartAnimation(L"RelativeOffsetAdjustment.X", rightAnimation);
-}
-
-void MainWindow::PlayHideAnimation(winrt::TimeSpan const& duration)
-{
-    auto leftAnimation = m_compositor.CreateScalarKeyFrameAnimation();
-    leftAnimation.InsertKeyFrame(0.0f, -0.5f);
-    leftAnimation.InsertKeyFrame(1.0f, 0.0f);
-    leftAnimation.IterationBehavior(winrt::AnimationIterationBehavior::Count);
-    leftAnimation.IterationCount(1);
-    leftAnimation.Duration(duration);
-
-    auto rightAnimation = m_compositor.CreateScalarKeyFrameAnimation();
-    rightAnimation.InsertKeyFrame(0.0f, 1.0f);
-    rightAnimation.InsertKeyFrame(1.0f, 0.5f);
-    rightAnimation.IterationBehavior(winrt::AnimationIterationBehavior::Count);
-    rightAnimation.IterationCount(1);
-    rightAnimation.Duration(duration);
-
-    m_leftShadeVisual.StartAnimation(L"RelativeOffsetAdjustment.X", leftAnimation);
-    m_rightShadeVisual.StartAnimation(L"RelativeOffsetAdjustment.X", rightAnimation);
+    m_lButtonUp = callback;
 }

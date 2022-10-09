@@ -10,6 +10,12 @@ struct App
 	winrt::Windows::Foundation::IAsyncAction LoadGifAsync(winrt::Windows::Storage::Streams::IRandomAccessStream stream);
 
 private:
+	void OnLButtonUp();
+
+	void PlayShowAnimation(winrt::Windows::Foundation::TimeSpan const& duration);
+	void PlayHideAnimation(winrt::Windows::Foundation::TimeSpan const& duration);
+
+private:
 	std::unique_ptr<MainWindow> m_window;
 	winrt::Windows::UI::Composition::Compositor m_compositor{ nullptr };
 	winrt::Windows::UI::Composition::CompositionTarget m_target{ nullptr };

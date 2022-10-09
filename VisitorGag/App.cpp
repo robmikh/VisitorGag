@@ -79,12 +79,14 @@ App::App()
     m_rightShadeVisual.Brush(m_rightShadeBrush);
     m_root.Children().InsertAtTop(m_leftShadeVisual);
     m_root.Children().InsertAtTop(m_rightShadeVisual);
-    m_window->SetShadeVisuals(m_leftShadeVisual, m_rightShadeVisual);
 
     // Prep the shade surface
     m_shadeSurface = m_compGraphics.CreateDrawingSurface2({ 1, 1 }, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, winrt::DirectXAlphaMode::Premultiplied);
     m_leftShadeBrush.Surface(m_shadeSurface);
     m_rightShadeBrush.Surface(m_shadeSurface);
+
+    // Setup callback
+    m_window->OnLButtonUp(std::bind(&App::OnLButtonUp, this));
 }
 
 winrt::IAsyncOperation<bool> App::TryLoadGifFromPickerAsync()
@@ -184,4 +186,56 @@ winrt::IAsyncAction App::LoadGifAsync(winrt::IRandomAccessStream stream)
     // Show window
     m_gifPlayer->Play();
     m_window->Show(x, y, gifSize);
+    PlayShowAnimation(std::chrono::milliseconds(800));
+}
+
+void App::OnLButtonUp()
+{
+    auto batch = m_compositor.CreateScopedBatch(winrt::CompositionBatchTypes::Animation);
+    PlayHideAnimation(std::chrono::milliseconds(800));
+    batch.Completed([&](auto&&, auto&&)
+        {
+            m_window->Hide();
+        });
+    batch.End();
+}
+
+void App::PlayShowAnimation(winrt::Windows::Foundation::TimeSpan const& duration)
+{
+    auto leftAnimation = m_compositor.CreateScalarKeyFrameAnimation();
+    leftAnimation.InsertKeyFrame(0.0f, 0.0f);
+    leftAnimation.InsertKeyFrame(1.0f, -0.5f);
+    leftAnimation.IterationBehavior(winrt::AnimationIterationBehavior::Count);
+    leftAnimation.IterationCount(1);
+    leftAnimation.Duration(duration);
+
+    auto rightAnimation = m_compositor.CreateScalarKeyFrameAnimation();
+    rightAnimation.InsertKeyFrame(0.0f, 0.5f);
+    rightAnimation.InsertKeyFrame(1.0f, 1.0f);
+    rightAnimation.IterationBehavior(winrt::AnimationIterationBehavior::Count);
+    rightAnimation.IterationCount(1);
+    rightAnimation.Duration(duration);
+
+    m_leftShadeVisual.StartAnimation(L"RelativeOffsetAdjustment.X", leftAnimation);
+    m_rightShadeVisual.StartAnimation(L"RelativeOffsetAdjustment.X", rightAnimation);
+}
+
+void App::PlayHideAnimation(winrt::Windows::Foundation::TimeSpan const& duration)
+{
+    auto leftAnimation = m_compositor.CreateScalarKeyFrameAnimation();
+    leftAnimation.InsertKeyFrame(0.0f, -0.5f);
+    leftAnimation.InsertKeyFrame(1.0f, 0.0f);
+    leftAnimation.IterationBehavior(winrt::AnimationIterationBehavior::Count);
+    leftAnimation.IterationCount(1);
+    leftAnimation.Duration(duration);
+
+    auto rightAnimation = m_compositor.CreateScalarKeyFrameAnimation();
+    rightAnimation.InsertKeyFrame(0.0f, 1.0f);
+    rightAnimation.InsertKeyFrame(1.0f, 0.5f);
+    rightAnimation.IterationBehavior(winrt::AnimationIterationBehavior::Count);
+    rightAnimation.IterationCount(1);
+    rightAnimation.Duration(duration);
+
+    m_leftShadeVisual.StartAnimation(L"RelativeOffsetAdjustment.X", leftAnimation);
+    m_rightShadeVisual.StartAnimation(L"RelativeOffsetAdjustment.X", rightAnimation);
 }
