@@ -30,6 +30,7 @@ struct Options
     bool DxDebug = false;
     std::optional<std::filesystem::path> FilePath = std::nullopt;
     CaptureMode CaptureMode = CaptureMode::Default;
+    bool DemoMode = false;
 };
 
 std::optional<Options> ParseOptions(int argc, wchar_t* argv[]);
@@ -47,6 +48,8 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
         freopen_s(&fpstdin, "CONIN$", "r", stdin);
         freopen_s(&fpstdout, "CONOUT$", "w", stdout);
         freopen_s(&fpstderr, "CONOUT$", "w", stderr);
+
+        wprintf(L"\n");
     }
 
     // Parse ags
@@ -69,7 +72,7 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     auto controller = util::CreateDispatcherQueueControllerForCurrentThread();
 
     // Create our app
-    auto app = App(options.DxDebug, options.FilePath, options.CaptureMode);
+    auto app = App(options.DxDebug, options.FilePath, options.CaptureMode, options.DemoMode);
 
     // Run the rest of our initialization asynchronously on the DispatcherQueue
     auto queue = controller.DispatcherQueue();
@@ -120,6 +123,7 @@ std::optional<Options> ParseOptions(int argc, wchar_t* argv[])
         wprintf(L"  -dxDebug                  (optional) Use the D3D and D2D debug layers.\n");
         wprintf(L"  -forceWGC                 (optional) Force the use of Windows.Graphics.Capture.\n");
         wprintf(L"  -forceDDA                 (optional) Force the use of the Desktop Duplication API.\n");
+        wprintf(L"  -demoMode                 (optional) Always show the visitor in the same spot for demoing.\n");
         wprintf(L"\n");
         wprintf(L"Options:\n");
         wprintf(L"  -gif <path to gif file>   (optional) Path to a gif file. A picker will be shown if none is provided.\n");
@@ -130,6 +134,7 @@ std::optional<Options> ParseOptions(int argc, wchar_t* argv[])
     bool forceWGC = GetFlag(args, L"-forceWGC") || GetFlag(args, L"/forceWGC");
     bool forceDDA = GetFlag(args, L"-forceDDA") || GetFlag(args, L"/forceDDA");
     auto captureMode = CaptureMode::Default;
+    bool demoMode = GetFlag(args, L"-demoMode") || GetFlag(args, L"/demoMode");
     if (forceWGC && forceDDA)
     {
         wprintf(L"Both \"-forceWGC\" and \"-forceDDA\" cannot be set!\n");
@@ -168,6 +173,10 @@ std::optional<Options> ParseOptions(int argc, wchar_t* argv[])
     {
         wprintf(L"Using file \"%s\"...\n", filePathValue->wstring().c_str());
     }
+    if (demoMode)
+    {
+        wprintf(L"Using demo mode...\n");
+    }
     
-    return std::optional(Options{ dxDebug, filePath, captureMode });
+    return std::optional(Options{ dxDebug, filePath, captureMode, demoMode });
 }

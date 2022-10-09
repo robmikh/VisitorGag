@@ -39,10 +39,11 @@ winrt::IAsyncOperation<winrt::StorageFile> OpenGifFileAsync(HWND modalTo)
     co_return file;
 }
 
-App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode)
+App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode, bool demoMode)
 {
     m_dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
     m_gifPath = path;
+    m_demoMode = demoMode;
 
     // Create our window and visual tree
     m_window = std::make_unique<MainWindow>(L"VisitorGag", 800, 600);
@@ -217,15 +218,27 @@ void App::CaptureAndAnimate()
     // Generate random window position
     auto captureSource = m_captureSourceFactory->CreateCaptureSource(m_d3dDevice);
     auto desktopCoordinates = captureSource->DesktopCoordinates();
-    auto minX = desktopCoordinates.left;
-    auto minY = desktopCoordinates.top;
-    auto maxX = (desktopCoordinates.right - desktopCoordinates.left) - gifSize.Width;
-    auto maxY = (desktopCoordinates.bottom - desktopCoordinates.top) - gifSize.Height;
 
-    std::uniform_int_distribution<int> distX(minX, maxX);
-    std::uniform_int_distribution<int> distY(minY, maxY);
-    auto x = distX(m_randomDevice);
-    auto y = distY(m_randomDevice);
+    int32_t x = 0;
+    int32_t y = 0;
+    if (!m_demoMode)
+    {
+        auto minX = desktopCoordinates.left;
+        auto minY = desktopCoordinates.top;
+        auto maxX = (desktopCoordinates.right - desktopCoordinates.left) - gifSize.Width;
+        auto maxY = (desktopCoordinates.bottom - desktopCoordinates.top) - gifSize.Height;
+
+        std::uniform_int_distribution<int> distX(minX, maxX);
+        std::uniform_int_distribution<int> distY(minY, maxY);
+        x = distX(m_randomDevice);
+        y = distY(m_randomDevice);
+    }
+    else
+    {
+        auto margin = 75;
+        x = desktopCoordinates.right - gifSize.Width - margin;
+        y = margin;
+    }
 
     // Capture screen with DDA
     winrt::com_ptr<ID3D11Texture2D> windowAreaTexture;
