@@ -166,6 +166,7 @@ void App::OnLButtonUp()
     batch.Completed([&](auto&&, auto&&)
         {
             m_window->Hide();
+            m_gifPlayer->Stop();
             Rerun();
         });
     batch.End();
