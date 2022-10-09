@@ -3,9 +3,16 @@
 #include "CompositionGifPlayer.h"
 #include "ICaptureSource.h"
 
+enum class CaptureMode
+{
+	Default,
+	WGC,
+	DDA
+};
+
 struct App
 {
-	App();
+	App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode);
 
 	winrt::Windows::Foundation::IAsyncOperation<bool> TryLoadGifFromPickerAsync();
 	winrt::Windows::Foundation::IAsyncAction LoadGifAsync(winrt::Windows::Storage::Streams::IRandomAccessStream stream);
@@ -40,4 +47,6 @@ private:
 	std::random_device m_randomDevice;
 	std::unique_ptr<CompositionGifPlayer> m_gifPlayer;
 	std::shared_ptr<ICaptureSourceFactory> m_captureSourceFactory;
+
+	std::optional<std::filesystem::path> m_gifPath = std::nullopt;
 };

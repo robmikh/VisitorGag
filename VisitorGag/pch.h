@@ -39,6 +39,7 @@
 
 // Shell
 #include <shobjidl.h>
+#include <shellapi.h>
 
 // STL
 #include <vector>
@@ -65,3 +66,5 @@
 #include <robmikh.common/hwnd.interop.h>
 #include <robmikh.common/capture.desktop.interop.h>
 #include <robmikh.common/DesktopWindow.h>
+#include <robmikh.common/wcliparse.h>
+#include <robmikh.common/storage.desktop.h>

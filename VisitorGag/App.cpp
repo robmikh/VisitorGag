@@ -39,9 +39,10 @@ winrt::IAsyncOperation<winrt::StorageFile> OpenGifFileAsync(HWND modalTo)
     co_return file;
 }
 
-App::App()
+App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode)
 {
     m_dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
+    m_gifPath = path;
 
     // Create our window and visual tree
     m_window = std::make_unique<MainWindow>(L"VisitorGag", 800, 600);
@@ -52,9 +53,19 @@ App::App()
     m_target.Root(m_root);
 
     // Init D3D and D2D
-    m_d3dDevice = util::CreateD3DDevice();
+    uint32_t flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    if (dxDebug)
+    {
+        flags |= D3D11_CREATE_DEVICE_DEBUG;
+    }
+    m_d3dDevice = util::CreateD3DDevice(flags);
     m_d3dDevice->GetImmediateContext(m_d3dContext.put());
-    m_d2dFactory = util::CreateD2DFactory();
+    auto debugLevel = D2D1_DEBUG_LEVEL_NONE;
+    if (dxDebug)
+    {
+        debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
+    }
+    m_d2dFactory = util::CreateD2DFactory(debugLevel);
     m_d2dDevice = util::CreateD2DDevice(m_d2dFactory, m_d3dDevice);
     m_compGraphics = util::CreateCompositionGraphicsDevice(m_compositor, m_d3dDevice.get());
 
@@ -94,16 +105,27 @@ App::App()
     m_rightShadeBrush.Surface(m_shadeSurface);
 
     // Pick a capture method
-    // Starting with Windows 10 build 20348, we can use Windows.Graphics.Capture instead and disable the border.
-    if (winrt::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::GraphicsCaptureSession>(), L"IsBorderRequired"))
+    switch (captureMode)
     {
+    case CaptureMode::WGC:
         m_captureSourceFactory = std::make_shared<WGCCaptureSourceFactory>();
-    }
-    else
-    {
+        break;
+    case CaptureMode::DDA:
         m_captureSourceFactory = std::make_shared<DDACaptureSourceFactory>();
+        break;
+    default:
+        // Starting with Windows 10 build 20348, we can use Windows.Graphics.Capture instead and disable the border.
+        if (winrt::ApiInformation::IsPropertyPresent(winrt::name_of<winrt::GraphicsCaptureSession>(), L"IsBorderRequired"))
+        {
+            m_captureSourceFactory = std::make_shared<WGCCaptureSourceFactory>();
+        }
+        else
+        {
+            m_captureSourceFactory = std::make_shared<DDACaptureSourceFactory>();
+        }
+        break;
     }
-
+    
     // Setup callback
     m_window->OnLButtonUp(std::bind(&App::OnLButtonUp, this));
 }
@@ -111,7 +133,16 @@ App::App()
 winrt::IAsyncOperation<bool> App::TryLoadGifFromPickerAsync()
 {
     // Load a gif file
-    auto file = co_await OpenGifFileAsync(m_window->m_window);
+    winrt::StorageFile file{ nullptr };
+    if (m_gifPath.has_value())
+    {
+        file = co_await util::GetStorageFileFromPathAsync(m_gifPath.value().wstring());
+    }
+    else
+    {
+        file = co_await OpenGifFileAsync(m_window->m_window);
+    }
+
     if (file != nullptr)
     {
         auto stream = co_await file.OpenReadAsync();
