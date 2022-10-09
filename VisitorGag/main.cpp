@@ -48,7 +48,7 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     auto d3dDevice = util::CreateD3DDevice();
     auto d2dFactory = util::CreateD2DFactory();
     auto d2dDevice = util::CreateD2DDevice(d2dFactory, d3dDevice);
-    auto compGraphics = util::CreateCompositionGraphicsDevice(compositor, d2dDevice.get());
+    auto compGraphics = util::CreateCompositionGraphicsDevice(compositor, d3dDevice.get());
 
     // Create the gif player
     auto gifPlayer = CompositionGifPlayer(compositor, compGraphics, d2dDevice, d3dDevice);
@@ -57,17 +57,34 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
     gifVisual.RelativeOffsetAdjustment({ 0.5f, 0.5f, 0.0f });
     root.Children().InsertAtTop(gifVisual);
 
-    // DEBUG: Remove later
-    auto debugCompGraphics = util::CreateCompositionGraphicsDevice(compositor, d3dDevice.get());
-    auto debugSurface = debugCompGraphics.CreateDrawingSurface2({ 1, 1 }, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, winrt::DirectXAlphaMode::Premultiplied);
-    auto debugVisual = compositor.CreateSpriteVisual();
-    debugVisual.RelativeSizeAdjustment({ 1, 1 });
-    debugVisual.Brush(compositor.CreateSurfaceBrush(debugSurface));
-    root.Children().InsertAtTop(debugVisual);
+    // Create the shade visuals
+    auto leftShadeVisual = compositor.CreateSpriteVisual();
+    leftShadeVisual.RelativeSizeAdjustment({ 0.5f, 1.0f });
+    auto leftShadeBrush = compositor.CreateSurfaceBrush();
+    leftShadeBrush.Stretch(winrt::CompositionStretch::None);
+    leftShadeBrush.HorizontalAlignmentRatio(0.0f);
+    leftShadeBrush.VerticalAlignmentRatio(0.0f);
+    leftShadeVisual.Brush(leftShadeBrush);
+    auto rightShadeVisual = compositor.CreateSpriteVisual();
+    rightShadeVisual.RelativeSizeAdjustment({ 0.5f, 1.0f });
+    rightShadeVisual.RelativeOffsetAdjustment({ 0.5f, 0.0f, 0.0f });
+    auto rightShadeBrush = compositor.CreateSurfaceBrush();
+    rightShadeBrush.Stretch(winrt::CompositionStretch::None);
+    rightShadeBrush.HorizontalAlignmentRatio(0.0f);
+    rightShadeBrush.VerticalAlignmentRatio(0.0f);
+    rightShadeVisual.Brush(rightShadeBrush);
+    root.Children().InsertAtTop(leftShadeVisual);
+    root.Children().InsertAtTop(rightShadeVisual);
+    window.SetShadeVisuals(leftShadeVisual, rightShadeVisual);
+
+    // Prep the shade surface
+    auto shadeSurface = compGraphics.CreateDrawingSurface2({ 1, 1 }, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, winrt::DirectXAlphaMode::Premultiplied);
+    leftShadeBrush.Surface(shadeSurface);
+    rightShadeBrush.Surface(shadeSurface);
 
     // Run the rest of our initialization asynchronously on the DispatcherQueue
     auto queue = controller.DispatcherQueue();
-    queue.TryEnqueue([&window, &gifPlayer, d3dDevice, debugSurface]() -> winrt::fire_and_forget
+    queue.TryEnqueue([&window, &gifPlayer, d3dDevice, shadeSurface, leftShadeBrush, rightShadeBrush]() -> winrt::fire_and_forget
         {
             auto dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
             auto&& windowRef = window;
@@ -75,9 +92,9 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
             auto d3dDeviceRef = d3dDevice;
             winrt::com_ptr<ID3D11DeviceContext> d3dContext;
             d3dDevice->GetImmediateContext(d3dContext.put());
-
-            // DEBUG: Remove later
-            auto debugSurfaceRef = debugSurface;
+            auto leftBrush = leftShadeBrush;
+            auto rightBrush = rightShadeBrush;
+            auto shadeSurfaceRef = shadeSurface;
 
             // Load a gif file
             auto file = co_await OpenGifFileAsync(windowRef.m_window);
@@ -86,7 +103,6 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
                 auto stream = co_await file.OpenReadAsync();
                 co_await dispatcherQueue;
                 co_await player.LoadGifAsync(stream);
-                player.Play();
                 auto gifSize = player.Size();
 
                 // Generate random window position
@@ -138,14 +154,14 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
                     winrt::check_hresult(duplication->ReleaseFrame());
                 }
 
-                // DEBUG: Show the window area texture
-                debugSurfaceRef.Resize(gifSize);
+                // Apply the window area texture
+                shadeSurfaceRef.Resize(gifSize);
                 {
                     POINT point = {};
-                    auto dxgiSurface = util::SurfaceBeginDraw(debugSurfaceRef, &point);
-                    auto endDraw = wil::scope_exit([debugSurfaceRef]()
+                    auto dxgiSurface = util::SurfaceBeginDraw(shadeSurfaceRef, &point);
+                    auto endDraw = wil::scope_exit([shadeSurfaceRef]()
                         {
-                            util::SurfaceEndDraw(debugSurfaceRef);
+                            util::SurfaceEndDraw(shadeSurfaceRef);
                         });
                     auto destination = dxgiSurface.as<ID3D11Texture2D>();
 
@@ -157,10 +173,11 @@ int __stdcall WinMain(HINSTANCE, HINSTANCE, PSTR, int)
                     region.back = 1;
                     d3dContext->CopySubresourceRegion(destination.get(), 0, point.x, point.y, 0, windowAreaTexture.get(), 0, &region);
                 }
-                
-                // TODO: Build show animation
-                // TODO: Build hide animation
+                leftBrush.Offset({ 0.0f, 0.0f });
+                rightBrush.Offset({ static_cast<float>(gifSize.Width) / -2.0f, 0.0f });
+
                 // Show window
+                player.Play();
                 windowRef.Show(x, y, gifSize);
             }
             else

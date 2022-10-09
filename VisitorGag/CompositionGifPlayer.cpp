@@ -95,11 +95,16 @@ std::future<std::unique_ptr<GifImage>> GifImage::LoadAsync(winrt::IRandomAccessS
     co_return gifImage;
 }
 
-CompositionGifPlayer::CompositionGifPlayer(winrt::Compositor const& compositor, winrt::CompositionGraphicsDevice const& compGraphics, winrt::com_ptr<ID2D1Device> const& d2dDevice, winrt::com_ptr<ID3D11Device> const& d3dDevice)
+CompositionGifPlayer::CompositionGifPlayer(
+    winrt::Compositor const& compositor, 
+    winrt::CompositionGraphicsDevice const& compGraphics, 
+    winrt::com_ptr<ID2D1Device> const& d2dDevice, 
+    winrt::com_ptr<ID3D11Device> const& d3dDevice)
 {
     m_compGraphics = compGraphics;
     m_d2dDevice = d2dDevice;
     m_d3dDevice = d3dDevice;
+    m_d3dDevice->GetImmediateContext(m_d3dContext.put());
     winrt::check_hresult(d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, m_d2dContext.put()));
 
     m_visual = compositor.CreateSpriteVisual();
@@ -144,8 +149,6 @@ winrt::IAsyncAction CompositionGifPlayer::LoadGifAsync(winrt::IRandomAccessStrea
         auto lock = m_lock.lock();
 
         auto d3dMultithread = m_d3dDevice.as<ID3D11Multithread>();
-        winrt::com_ptr<ID3D11DeviceContext> d3dContext;
-        m_d3dDevice->GetImmediateContext(d3dContext.put());
 
         if (m_timer != nullptr)
         {
@@ -162,6 +165,7 @@ winrt::IAsyncAction CompositionGifPlayer::LoadGifAsync(winrt::IRandomAccessStrea
         {
             m_d2dContext->SetTarget(nullptr);
             m_d2dRenderTarget = nullptr;
+            m_renderTargetTexture = nullptr;
         }
         D3D11_TEXTURE2D_DESC desc = {};
         desc.Width = m_image->Width();
@@ -171,9 +175,8 @@ winrt::IAsyncAction CompositionGifPlayer::LoadGifAsync(winrt::IRandomAccessStrea
         desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
         desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
         desc.SampleDesc.Count = 1;
-        winrt::com_ptr<ID3D11Texture2D> renderTargetTexture;
-        winrt::check_hresult(m_d3dDevice->CreateTexture2D(&desc, nullptr, renderTargetTexture.put()));
-        m_d2dRenderTarget = CreateBitmapFromTexture(renderTargetTexture, m_d2dContext);
+        winrt::check_hresult(m_d3dDevice->CreateTexture2D(&desc, nullptr, m_renderTargetTexture.put()));
+        m_d2dRenderTarget = CreateBitmapFromTexture(m_renderTargetTexture, m_d2dContext);
         m_d2dContext->SetTarget(m_d2dRenderTarget.get());
 
         auto frames = m_image->Frames();
@@ -221,12 +224,7 @@ winrt::IAsyncAction CompositionGifPlayer::LoadGifAsync(winrt::IRandomAccessStrea
                 delay = std::chrono::milliseconds(100);
             }
 
-            auto surfaceContext = util::SurfaceContext(m_surface);
-            auto surfaceD2DContext = surfaceContext.GetDeviceContext();
-
-            surfaceD2DContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
-            WINRT_ASSERT(!m_frames.empty());
-            surfaceD2DContext->DrawImage(m_d2dRenderTarget.get());
+            UpdateSurface();
             m_timer.Interval(delay);
             m_currentIndex = 0;
         }
@@ -274,13 +272,28 @@ void CompositionGifPlayer::OnTick(winrt::DispatcherQueueTimer const&, winrt::IIn
         delay = std::chrono::milliseconds(100);
     }
 
-    {
-        auto surfaceContext = util::SurfaceContext(m_surface);
-        auto surfaceD2DContext = surfaceContext.GetDeviceContext();
-
-        surfaceD2DContext->Clear(D2D1_COLOR_F{ 0.0f, 0.0f, 0.0f, 1.0f });
-        surfaceD2DContext->DrawImage(m_d2dRenderTarget.get());
-    }
+    UpdateSurface();
     m_timer.Interval(delay);
     m_timer.Start();
+}
+
+void CompositionGifPlayer::UpdateSurface()
+{
+    POINT point = {};
+    auto dxgiSurface = util::SurfaceBeginDraw(m_surface, &point);
+    auto surface = m_surface;
+    auto endDraw = wil::scope_exit([surface]()
+        {
+            util::SurfaceEndDraw(surface);
+        });
+    auto destination = dxgiSurface.as<ID3D11Texture2D>();
+
+    winrt::SizeInt32 gifSize = { static_cast<int32_t>(m_image->Width()), static_cast<int32_t>(m_image->Height()) };
+    D3D11_BOX region = {};
+    region.left = 0;
+    region.right = gifSize.Width;
+    region.top = 0;
+    region.bottom = gifSize.Height;
+    region.back = 1;
+    m_d3dContext->CopySubresourceRegion(destination.get(), 0, point.x, point.y, 0, m_renderTargetTexture.get(), 0, &region);
 }

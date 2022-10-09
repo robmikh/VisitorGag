@@ -42,13 +42,16 @@ private:
     winrt::Windows::Foundation::TimeSpan DrawFrameToRenderTarget(size_t index, winrt::com_ptr<ID2D1DeviceContext> const& d2dContext);
 
     void OnTick(winrt::Windows::System::DispatcherQueueTimer const& timer, winrt::Windows::Foundation::IInspectable const& args);
+    void UpdateSurface();
 
 private:
     wil::critical_section m_lock = {};
     winrt::com_ptr<ID2D1Device> m_d2dDevice;
     winrt::com_ptr<ID2D1DeviceContext> m_d2dContext;
     winrt::com_ptr<ID2D1Bitmap1> m_d2dRenderTarget;
+    winrt::com_ptr<ID3D11Texture2D> m_renderTargetTexture;
     winrt::com_ptr<ID3D11Device> m_d3dDevice;
+    winrt::com_ptr<ID3D11DeviceContext> m_d3dContext;
     winrt::Windows::UI::Composition::CompositionGraphicsDevice m_compGraphics{ nullptr };
     std::unique_ptr<GifImage> m_image;
     std::vector<winrt::com_ptr<ID2D1Bitmap>> m_frames;
