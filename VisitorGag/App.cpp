@@ -39,22 +39,6 @@ winrt::IAsyncOperation<winrt::StorageFile> OpenGifFileAsync(HWND modalTo)
     co_return file;
 }
 
-void SaveRawTexture(winrt::com_ptr<ID3D11Texture2D> const& texture, std::string const& fileName)
-{
-    D3D11_TEXTURE2D_DESC desc = {};
-    texture->GetDesc(&desc);
-
-    auto filePath = std::filesystem::current_path();
-    {
-        std::stringstream fileNameStream;
-        fileNameStream << fileName.c_str() << "_" << desc.Width << "x" << desc.Height << ".bin";
-        filePath /= fileNameStream.str();
-    }
-    std::ofstream file(filePath, std::ios::out | std::ios::binary);
-    auto bytes = util::CopyBytesFromTexture(texture);
-    file.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-}
-
 App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode captureMode)
 {
     m_dispatcherQueue = winrt::DispatcherQueue::GetForCurrentThread();
@@ -110,10 +94,6 @@ App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode ca
     m_rightShadeVisual.Brush(m_rightShadeBrush);
     m_root.Children().InsertAtTop(m_leftShadeVisual);
     m_root.Children().InsertAtTop(m_rightShadeVisual);
-
-    // DEBUG: Remove later
-    //m_leftShadeVisual.Brush(m_compositor.CreateColorBrush(winrt::Color{ 255, 224, 143, 22 }));
-    //m_rightShadeVisual.Brush(m_compositor.CreateColorBrush(winrt::Color{ 255, 22, 210, 224 }));
 
     // Prep the shade surface
     m_shadeSurface = m_compGraphics.CreateDrawingSurface2({ 1, 1 }, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, winrt::DirectXAlphaMode::Premultiplied);
@@ -270,9 +250,6 @@ void App::CaptureAndAnimate()
         region.back = 1;
         m_d3dContext->CopySubresourceRegion(windowAreaTexture.get(), 0, 0, 0, 0, captureTexture.get(), 0, &region);
     }
-
-    // DEBUG: Remove later
-    SaveRawTexture(windowAreaTexture, "windowAreaTexture");
 
     // Apply the window area texture
     m_shadeSurface.Resize(gifSize);
