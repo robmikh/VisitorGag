@@ -79,6 +79,7 @@ App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode ca
 
     // Create the shade visuals
     m_leftShadeVisual = m_compositor.CreateSpriteVisual();
+    m_leftShadeVisual.BorderMode(winrt::CompositionBorderMode::Hard);
     m_leftShadeVisual.RelativeSizeAdjustment({ 0.5f, 1.0f });
     m_leftShadeBrush = m_compositor.CreateSurfaceBrush();
     m_leftShadeBrush.Stretch(winrt::CompositionStretch::None);
@@ -86,6 +87,7 @@ App::App(bool dxDebug, std::optional<std::filesystem::path> path, CaptureMode ca
     m_leftShadeBrush.VerticalAlignmentRatio(0.0f);
     m_leftShadeVisual.Brush(m_leftShadeBrush);
     m_rightShadeVisual = m_compositor.CreateSpriteVisual();
+    m_rightShadeVisual.BorderMode(winrt::CompositionBorderMode::Hard);
     m_rightShadeVisual.RelativeSizeAdjustment({ 0.5f, 1.0f });
     m_rightShadeVisual.RelativeOffsetAdjustment({ 0.5f, 0.0f, 0.0f });
     m_rightShadeBrush = m_compositor.CreateSurfaceBrush();
