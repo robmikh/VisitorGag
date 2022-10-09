@@ -103,7 +103,7 @@ winrt::IAsyncOperation<bool> App::TryLoadGifFromPickerAsync()
     }
 }
 
-winrt::IAsyncAction App::LoadGifAsync(winrt::IRandomAccessStream const& stream)
+winrt::IAsyncAction App::LoadGifAsync(winrt::IRandomAccessStream stream)
 {
     co_await m_dispatcherQueue;
     co_await m_gifPlayer->LoadGifAsync(stream);
@@ -121,11 +121,11 @@ winrt::IAsyncAction App::LoadGifAsync(winrt::IRandomAccessStream const& stream)
     auto minY = outputDesc.DesktopCoordinates.top;
     auto maxX = (outputDesc.DesktopCoordinates.right - outputDesc.DesktopCoordinates.left) - gifSize.Width;
     auto maxY = (outputDesc.DesktopCoordinates.bottom - outputDesc.DesktopCoordinates.top) - gifSize.Height;
-    std::random_device randomDevice;
+    
     std::uniform_int_distribution<int> distX(minX, maxX);
     std::uniform_int_distribution<int> distY(minY, maxY);
-    auto x = distX(randomDevice);
-    auto y = distY(randomDevice);
+    auto x = distX(m_randomDevice);
+    auto y = distY(m_randomDevice);
 
     // Capture screen with DDA
     winrt::com_ptr<ID3D11Texture2D> windowAreaTexture;

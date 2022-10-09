@@ -7,7 +7,7 @@ struct App
 	App();
 
 	winrt::Windows::Foundation::IAsyncOperation<bool> TryLoadGifFromPickerAsync();
-	winrt::Windows::Foundation::IAsyncAction LoadGifAsync(winrt::Windows::Storage::Streams::IRandomAccessStream const& stream);
+	winrt::Windows::Foundation::IAsyncAction LoadGifAsync(winrt::Windows::Storage::Streams::IRandomAccessStream stream);
 
 private:
 	std::unique_ptr<MainWindow> m_window;
@@ -28,6 +28,6 @@ private:
 	winrt::Windows::UI::Composition::CompositionDrawingSurface m_shadeSurface{ nullptr };
 
 	winrt::Windows::System::DispatcherQueue m_dispatcherQueue{ nullptr };
-
+	std::random_device m_randomDevice;
 	std::unique_ptr<CompositionGifPlayer> m_gifPlayer;
 };
