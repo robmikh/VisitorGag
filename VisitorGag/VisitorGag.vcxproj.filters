@@ -9,10 +9,15 @@
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="CompositionGifPlayer.cpp" />
+    <ClCompile Include="App.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="MainWindow.h" />
     <ClInclude Include="CompositionGifPlayer.h" />
+    <ClInclude Include="App.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="$(MSBuildThisFileDirectory)..\..\natvis\wil.natvis" />
   </ItemGroup>
 </Project>
